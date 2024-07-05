@@ -1,0 +1,89 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+    
+    - name: Build
+        id: build
+        uses: cloudposse/github-action-docker-build-push@main
+        with:
+          registry: registry.hub.docker.com
+          organization: "${{ github.event.repository.owner.login }}"
+          repository: "${{ github.event.repository.name }}"
+          login: "${{ secrets.DOCKERHUB_USERNAME }}"
+          password: "${{ secrets.DOCKERHUB_PASSWORD }}"
+          platforms: linux/amd64,linux/arm64
+
+    outputs:
+      image: ${{ steps.build.outputs.image }}
+      tag: ${{ steps.build.outputs.tag }}
+  
+  deploy:
+      runs-on: ubuntu-latest
+
+      step :
+      - uses: actions/checkout@v4
+      - name: Deploy the docker image
+        run: docker apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: myapp
+        spec:
+          selector:
+            matchLabels:
+              app: myapp
+          template:
+            metadata:
+              labels:
+                app: myapp
+            spec:
+              containers:
+              - name: myapp
+                image: <Image>
+                resources:
+                  limits:
+                    memory: "128Mi"
+                    cpu: "500m"_
+    jobs:
+        my_job:
+          name: deploy to staging
+          runs-on: ubuntu-latest
+
+    jobs: 
+      test:
+      name: test on node ${{matrix.node_version}} and ${{matrix.os}} 
+      runs-on: ${{matrix.os}} 
+      strategy:
+        matrix:
+        node_version:['18.x', '20.x']
+        os: [ubuntu-latest,windows-latest,macOS-latest]
+
+      steps:
+      -uses: actions/checkout@v4
+      -name: use Node.js ${{matrix.node_version}}
+        uses: action/setup-node@v4
+        with:
+        node-version: {{matrix.node_version}}
+      -name: npm install, build and test
+        run: |
+          npm install
+          npm run build --if -present
+          npm test
+    
+    steps:
+      -run: npm publish
+        if: github.event_name == 'push'
